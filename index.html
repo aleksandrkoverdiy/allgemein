@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Конструктор Кроссвордов</title>
+    <style>
+        :root {
+            --cell-size: 40px;
+            --bg-color: #f4f7f6;
+            --border-color: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 { color: #2c3e50; }
+
+        .crossword-container {
+            display: grid;
+            grid-template-columns: repeat(5, var(--cell-size));
+            grid-template-rows: repeat(5, var(--cell-size));
+            gap: 2px;
+            background-color: var(--border-color);
+            padding: 2px;
+            border: 2px solid var(--border-color);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .cell {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            background-color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .cell.black {
+            background-color: var(--border-color);
+        }
+
+        .cell input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            outline: none;
+        }
+
+        .cell input:focus {
+            background-color: #e8f0fe;
+        }
+
+        .cell-number {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            font-size: 0.6rem;
+            color: #777;
+        }
+
+        .controls {
+            margin-top: 30px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #3498db;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover { background-color: #2980b9; }
+        
+        .success { color: #27ae60; font-weight: bold; margin-top: 15px; display: none; }
+    </style>
+</head>
+<body>
+
+    <h1>Мини-Кроссворд</h1>
+    
+    <div class="crossword-container" id="grid">
+        </div>
+
+    <div id="message" class="success">Поздравляем! Кроссворд решен верно!</div>
+
+    <div class="controls">
+        <button onclick="checkAnswers()">Проверить ответы</button>
+        <button onclick="resetGame()">Очистить</button>
+    </div>
+
+    <script>
+        // Простая схема 5x5: 0 - черная клетка, буква - правильный ответ
+        const puzzle = [
+            ['К', 'О', 'Т', 0, 0],
+            [0, 0, 'О', 0, 0],
+            ['Л', 'У', 'К', 'А', 0],
+            [0, 0, 'А', 0, 0],
+            [0, 0, 'Ф', 'А', 'З']
+        ];
+
+        const gridElement = document.getElementById('grid');
+
+        // Создание сетки
+        function createGrid() {
+            gridElement.innerHTML = '';
+            for (let r = 0; r < 5; r++) {
+                for (let c = 0; c < 5; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    
+                    if (puzzle[r][c] === 0) {
+                        cell.classList.add('black');
+                    } else {
+                        const input = document.createElement('input');
+                        input.maxLength = 1;
+                        input.dataset.row = r;
+                        input.dataset.col = c;
+                        cell.appendChild(input);
+
+                        // Нумерация для красоты (упрощенно)
+                        if ((r===0 && c===0) || (r===2 && c===0) || (r===0 && c===2)) {
+                            const num = document.createElement('span');
+                            num.className = 'cell-number';
+                            num.innerText = (r + c + 1);
+                            cell.appendChild(num);
+                        }
+                    }
+                    gridElement.appendChild(cell);
+                }
+            }
+        }
+
+        function checkAnswers() {
+            const inputs = document.querySelectorAll('.cell input');
+            let allCorrect = true;
+
+            inputs.forEach(input => {
+                const r = input.dataset.row;
+                const c = input.dataset.col;
+                if (input.value.toUpperCase() === puzzle[r][c]) {
+                    input.style.color = '#27ae60';
+                } else {
+                    input.style.color = '#e74c3c';
+                    allCorrect = false;
+                }
+            });
+
+            if (allCorrect) {
+                document.getElementById('message').style.display = 'block';
+            }
+        }
+
+        function resetGame() {
+            const inputs = document.querySelectorAll('.cell input');
+            inputs.forEach(input => {
+                input.value = '';
+                input.style.color = 'black';
+            });
+            document.getElementById('message').style.display = 'none';
+        }
+
+        createGrid();
+    </script>
+</body>
+</html>
