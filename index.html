@@ -3,27 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Конструктор Кроссвордов (Исправленный)</title>
+    <title>Конструктор Кроссвордов PRO</title>
     <style>
-        :root { --cell: 35px; --accent: #3498db; }
-        body { font-family: system-ui, sans-serif; background: #f4f7f6; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .controls { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; width: 100%; max-width: 500px; text-align: center; }
-        input { padding: 10px; border: 2px solid #ddd; border-radius: 6px; width: 150px; text-transform: uppercase; }
-        button { padding: 10px 15px; cursor: pointer; background: var(--accent); color: white; border: none; border-radius: 6px; font-weight: bold; }
-        .grid { display: grid; grid-template-columns: repeat(15, var(--cell)); grid-template-rows: repeat(15, var(--cell)); gap: 1px; background: #444; border: 2px solid #444; }
+        :root { --cell: 35px; --accent: #3498db; --error: #e74c3c; --success: #2ecc71; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        
+        .controls { 
+            background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+            margin-bottom: 20px; width: 100%; max-width: 550px; text-align: center; 
+        }
+
+        .input-group { margin-bottom: 15px; display: flex; justify-content: center; gap: 10px; }
+        input { padding: 10px; border: 2px solid #ddd; border-radius: 6px; width: 180px; text-transform: uppercase; font-weight: bold; }
+        
+        .btn { padding: 10px 15px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; transition: 0.2s; }
+        .btn-main { background: var(--accent); color: white; }
+        .btn-undo { background: #95a5a6; color: white; }
+        .btn-clear { background: #ecf0f1; color: #333; }
+        .btn:hover { opacity: 0.8; }
+
+        .grid { display: grid; grid-template-columns: repeat(15, var(--cell)); grid-template-rows: repeat(15, var(--cell)); gap: 1px; background: #333; border: 3px solid #333; border-radius: 4px; }
         .cell { width: var(--cell); height: var(--cell); background: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; }
         .cell.empty { background: #2c3e50; }
-        .cell.target { background: #fff9c4; cursor: pointer; border: 2px inset #fbc02d; box-sizing: border-box; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
-        .status { margin-top: 10px; font-size: 14px; color: #e74c3c; font-weight: bold; min-height: 20px; }
+        .cell.target { background: #fff9c4; cursor: pointer; position: relative; }
+        .cell.target::after { content: ''; position: absolute; inset: 0; border: 2px dashed #f1c40f; }
+
+        .status { margin-top: 10px; font-size: 14px; min-height: 20px; font-weight: 500; }
     </style>
 </head>
 <body>
 
     <div class="controls">
-        <h3>Умный Конструктор</h3>
-        <input type="text" id="wordInput" placeholder="Слово..." maxlength="12">
-        <button onclick="processInput()">Добавить</button>
+        <h2>Конструктор Кроссвордов</h2>
+        <div class="input-group">
+            <input type="text" id="wordInput" placeholder="Введите слово..." maxlength="12">
+            <button class="btn btn-main" onclick="processInput()">Добавить</button>
+        </div>
+        <div class="input-group">
+            <button class="btn btn-undo" onclick="undoLast()">Отменить последнее</button>
+            <button class="btn btn-clear" onclick="clearAll()">Очистить всё</button>
+        </div>
         <div class="status" id="status"></div>
     </div>
 
@@ -32,7 +51,7 @@
     <script>
         const SIZE = 15;
         let grid = Array(SIZE).fill().map(() => Array(SIZE).fill(null));
-        let placedWords = [];
+        let history = []; // Для хранения состояний сетки
 
         function render() {
             const container = document.getElementById('grid');
@@ -52,89 +71,88 @@
             const word = document.getElementById('wordInput').value.toUpperCase().trim();
             if (word.length < 2) return;
 
-            if (placedWords.length === 0) {
+            if (history.length === 0) {
                 place(word, 7, Math.floor((SIZE - word.length) / 2), 'h');
-                setStatus("", false);
+                showStatus("Первое слово добавлено!", "success");
             } else {
-                findConnections(word);
+                findPossibleConnections(word);
             }
             document.getElementById('wordInput').value = '';
         }
 
-        function findConnections(word) {
+        function findPossibleConnections(word) {
             render();
             let found = false;
             for (let r = 0; r < SIZE; r++) {
                 for (let c = 0; c < SIZE; c++) {
                     if (grid[r][c]) {
-                        const idx = word.indexOf(grid[r][c]);
-                        if (idx !== -1) {
+                        const charIdx = word.indexOf(grid[r][c]);
+                        if (charIdx !== -1) {
                             const cell = document.querySelector(`[data-r="${r}"][data-c="${c}"]`);
                             cell.classList.add('target');
-                            cell.onclick = () => tryPlace(word, r, c, idx);
+                            cell.onclick = () => tryPlace(word, r, c, charIdx);
                             found = true;
                         }
                     }
                 }
             }
-            setStatus(found ? "Нажми на желтую букву для стыковки" : "Нет общих букв!", !found);
+            showStatus(found ? "Нажмите на желтую букву для пересечения" : "Нет общих букв!", found ? "" : "error");
         }
 
-        function tryPlace(word, r, c, idx) {
-            // Определяем направление: если буква уже часть горизонтального, новое будет вертикальным
-            const isH = placedWords.some(w => w.r === r && c >= w.c && c < w.c + w.word.length && w.dir === 'h');
-            const dir = isH ? 'v' : 'h';
+        function tryPlace(word, r, c, wordIdx) {
+            // Определяем направление на основе существующих слов
+            // Если в этой клетке уже есть буква, смотрим, горизонтальная она или вертикальная
+            const isVerticalSite = (r > 0 && grid[r-1][c]) || (r < SIZE-1 && grid[r+1][c]);
+            const dir = isVerticalSite ? 'h' : 'v';
             
-            const startR = dir === 'v' ? r - idx : r;
-            const startC = dir === 'h' ? c - idx : c;
+            const startR = dir === 'v' ? r - wordIdx : r;
+            const startC = dir === 'h' ? c - wordIdx : c;
 
-            if (isValid(word, startR, startC, dir)) {
+            if (isValidPlacement(word, startR, startC, dir)) {
+                saveState();
                 place(word, startR, startC, dir);
-                setStatus("Слово добавлено!", false);
+                showStatus("Слово успешно добавлено!", "success");
             } else {
-                setStatus("Ошибка: Слишком тесно! Слова не должны слипаться.", true);
+                showStatus("Ошибка: Слово слипается с другими словами!", "error");
             }
         }
 
-        function isValid(word, startR, startC, dir) {
+        function isValidPlacement(word, startR, startC, dir) {
+            // Проверка границ
             if (startR < 0 || startC < 0 || 
                 (dir === 'v' && startR + word.length > SIZE) || 
                 (dir === 'h' && startC + word.length > SIZE)) return false;
 
             for (let i = 0; i < word.length; i++) {
-                const r = dir === 'v' ? startR + i : startR;
-                const c = dir === 'h' ? startC + i : startC;
+                const currR = dir === 'v' ? startR + i : startR;
+                const currC = dir === 'h' ? startC + i : startC;
 
-                // 1. Проверка конфликта букв
-                if (grid[r][c] && grid[r][c] !== word[i]) return false;
+                // 1. Если в клетке уже есть буква, она должна совпадать
+                if (grid[currR][currC] && grid[currR][currC] !== word[i]) return false;
 
-                // 2. Проверка соседей
-                const neighbors = [
-                    {dr: -1, dc: 0}, {dr: 1, dc: 0}, 
-                    {dr: 0, dc: -1}, {dr: 0, dc: 1}
-                ];
+                // 2. Проверка боковых соседей (важно!)
+                const neighbors = (dir === 'v') 
+                    ? [{dr: 0, dc: -1}, {dr: 0, dc: 1}] // Для вертикального слова проверяем лево/право
+                    : [{dr: -1, dc: 0}, {dr: 1, dc: 0}]; // Для горизонтального - верх/низ
 
-                for (let n of neighbors) {
-                    const nr = r + n.dr;
-                    const nc = c + n.dc;
-                    
+                for (const n of neighbors) {
+                    const nr = currR + n.dr, nc = currC + n.dc;
                     if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE) {
-                        const neighborContent = grid[nr][nc];
-                        if (neighborContent) {
-                            // Клетка занята. Проверяем, является ли это допустимым пересечением:
-                            const isCurrentCell = (nr === r && nc === c);
-                            
-                            // Проверяем, не является ли этот сосед частью нашего же нового слова
-                            let isPartOfNewWord = false;
-                            if (dir === 'h' && nr === startR && nc >= startC && nc < startC + word.length) isPartOfNewWord = true;
-                            if (dir === 'v' && nc === startC && nr >= startR && nr < startR + word.length) isPartOfNewWord = true;
-
-                            // Если это не сама буква пересечения и не часть нашего слова - это недопустимое "слипание"
-                            if (!isCurrentCell && !isPartOfNewWord) {
-                                return false; 
-                            }
-                        }
+                        // Если сосед занят, а наша текущая клетка БЫЛА пустой — это незаконное касание боком
+                        if (grid[nr][nc] && !grid[currR][currC]) return false;
                     }
+                }
+
+                // 3. Проверка торцов (перед первой и после последней буквы)
+                if (i === 0) { // Перед началом
+                    const br = dir === 'v' ? currR - 1 : currR;
+                    const bc = dir === 'h' ? currC - 1 : currC;
+                    if (br >= 0 && br < SIZE && bc >= 0 && bc < SIZE && grid[br][bc]) return false;
+                }
+                if (i === word.length - 1) { // После конца
+                    const ar = dir === 'v' ? currR + 1 : currR;
+                    const ac = dir === 'h' ? currC + 1 : currC;
+                    if (ar >= 0 && ar < SIZE && ac >= 0 && ac < SIZE && grid[ar][ac]) return false;
                 }
             }
             return true;
@@ -144,14 +162,34 @@
             for (let i = 0; i < word.length; i++) {
                 grid[dir === 'v' ? r + i : r][dir === 'h' ? c + i : c] = word[i];
             }
-            placedWords.push({word, r, c, dir});
             render();
         }
 
-        function setStatus(msg, isError) {
-            const el = document.getElementById('status');
-            el.innerText = msg;
-            el.style.color = isError ? "#e74c3c" : "#2ecc71";
+        function saveState() {
+            history.push(JSON.stringify(grid));
+        }
+
+        function undoLast() {
+            if (history.length > 0) {
+                grid = JSON.parse(history.pop());
+                render();
+                showStatus("Последнее действие отменено", "");
+            }
+        }
+
+        function clearAll() {
+            if (confirm("Очистить весь кроссворд?")) {
+                grid = Array(SIZE).fill().map(() => Array(SIZE).fill(null));
+                history = [];
+                render();
+                showStatus("Поле очищено", "");
+            }
+        }
+
+        function showStatus(msg, type) {
+            const s = document.getElementById('status');
+            s.innerText = msg;
+            s.style.color = type === "error" ? "var(--error)" : (type === "success" ? "var(--success)" : "#555");
         }
 
         render();
