@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Конструктор Кроссвордов PRO</title>
+    <title>Конструктор Кроссвордов (Исправленный)</title>
     <style>
         :root { --cell: 35px; --accent: #3498db; }
         body { font-family: system-ui, sans-serif; background: #f4f7f6; display: flex; flex-direction: column; align-items: center; padding: 20px; }
@@ -11,20 +11,20 @@
         input { padding: 10px; border: 2px solid #ddd; border-radius: 6px; width: 150px; text-transform: uppercase; }
         button { padding: 10px 15px; cursor: pointer; background: var(--accent); color: white; border: none; border-radius: 6px; font-weight: bold; }
         .grid { display: grid; grid-template-columns: repeat(15, var(--cell)); grid-template-rows: repeat(15, var(--cell)); gap: 1px; background: #444; border: 2px solid #444; }
-        .cell { width: var(--cell); height: var(--cell); background: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .cell { width: var(--cell); height: var(--cell); background: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; }
         .cell.empty { background: #2c3e50; }
-        .cell.target { background: #fff9c4; cursor: pointer; border: 2px inset #fbc02d; box-sizing: border-box; }
-        .cell.target:hover { background: #fff176; }
-        .status { margin-top: 10px; font-size: 14px; color: #555; height: 20px; }
+        .cell.target { background: #fff9c4; cursor: pointer; border: 2px inset #fbc02d; box-sizing: border-box; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+        .status { margin-top: 10px; font-size: 14px; color: #e74c3c; font-weight: bold; min-height: 20px; }
     </style>
 </head>
 <body>
 
     <div class="controls">
-        <h3>Конструктор с валидацией</h3>
+        <h3>Умный Конструктор</h3>
         <input type="text" id="wordInput" placeholder="Слово..." maxlength="12">
         <button onclick="processInput()">Добавить</button>
-        <div class="status" id="status">Введите первое слово.</div>
+        <div class="status" id="status"></div>
     </div>
 
     <div class="grid" id="grid"></div>
@@ -54,6 +54,7 @@
 
             if (placedWords.length === 0) {
                 place(word, 7, Math.floor((SIZE - word.length) / 2), 'h');
+                setStatus("", false);
             } else {
                 findConnections(word);
             }
@@ -76,38 +77,38 @@
                     }
                 }
             }
-            document.getElementById('status').innerText = found ? "Выберите точку пересечения" : "Нет общих букв!";
+            setStatus(found ? "Нажми на желтую букву для стыковки" : "Нет общих букв!", !found);
         }
 
         function tryPlace(word, r, c, idx) {
+            // Определяем направление: если буква уже часть горизонтального, новое будет вертикальным
             const isH = placedWords.some(w => w.r === r && c >= w.c && c < w.c + w.word.length && w.dir === 'h');
             const dir = isH ? 'v' : 'h';
+            
             const startR = dir === 'v' ? r - idx : r;
             const startC = dir === 'h' ? c - idx : c;
 
             if (isValid(word, startR, startC, dir)) {
                 place(word, startR, startC, dir);
-                document.getElementById('status').innerText = "Готово!";
+                setStatus("Слово добавлено!", false);
             } else {
-                alert("Ошибка: Слово касается других слов недопустимым образом!");
+                setStatus("Ошибка: Слишком тесно! Слова не должны слипаться.", true);
             }
         }
 
         function isValid(word, startR, startC, dir) {
-            // 1. Проверка границ
             if (startR < 0 || startC < 0 || 
                 (dir === 'v' && startR + word.length > SIZE) || 
                 (dir === 'h' && startC + word.length > SIZE)) return false;
 
-            // 2. Проверка окружения каждой буквы
             for (let i = 0; i < word.length; i++) {
                 const r = dir === 'v' ? startR + i : startR;
                 const c = dir === 'h' ? startC + i : startC;
 
-                // Если в самой клетке уже другая буква — конфликт
+                // 1. Проверка конфликта букв
                 if (grid[r][c] && grid[r][c] !== word[i]) return false;
 
-                // Проверяем соседей (слева, справа, сверху, снизу)
+                // 2. Проверка соседей
                 const neighbors = [
                     {dr: -1, dc: 0}, {dr: 1, dc: 0}, 
                     {dr: 0, dc: -1}, {dr: 0, dc: 1}
@@ -118,14 +119,20 @@
                     const nc = c + n.dc;
                     
                     if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE) {
-                        // Если сосед занят...
-                        if (grid[nr][nc]) {
-                            // ...это допустимо ТОЛЬКО если это буква того же слова, которое мы ставим
-                            const isPartSelf = dir === 'v' ? (nc === c && nr >= startR && nr < startR + word.length) : (nr === r && nc >= startC && nc < startC + word.length);
-                            // ...или если это существующая буква, на которой мы делаем пересечение
-                            const isIntersection = (grid[nr][nc] === word[i] && nr === r && nc === c);
+                        const neighborContent = grid[nr][nc];
+                        if (neighborContent) {
+                            // Клетка занята. Проверяем, является ли это допустимым пересечением:
+                            const isCurrentCell = (nr === r && nc === c);
+                            
+                            // Проверяем, не является ли этот сосед частью нашего же нового слова
+                            let isPartOfNewWord = false;
+                            if (dir === 'h' && nr === startR && nc >= startC && nc < startC + word.length) isPartOfNewWord = true;
+                            if (dir === 'v' && nc === startC && nr >= startR && nr < startR + word.length) isPartOfNewWord = true;
 
-                            if (!isPartSelf && !isIntersection) return false;
+                            // Если это не сама буква пересечения и не часть нашего слова - это недопустимое "слипание"
+                            if (!isCurrentCell && !isPartOfNewWord) {
+                                return false; 
+                            }
                         }
                     }
                 }
@@ -139,6 +146,12 @@
             }
             placedWords.push({word, r, c, dir});
             render();
+        }
+
+        function setStatus(msg, isError) {
+            const el = document.getElementById('status');
+            el.innerText = msg;
+            el.style.color = isError ? "#e74c3c" : "#2ecc71";
         }
 
         render();
