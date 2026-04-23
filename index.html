@@ -3,189 +3,223 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Конструктор Кроссвордов + Экспорт</title>
+    <title>Бесконечный Конструктор Кроссвордов</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
-        :root { --cell: 35px; --accent: #3498db; }
-        body { font-family: system-ui, sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        :root { --cell: 40px; --accent: #3498db; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8f9fa; display: flex; flex-direction: column; align-items: center; padding: 20px; color: #333; }
         
-        .controls { 
-            background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
-            margin-bottom: 20px; width: 100%; max-width: 550px; text-align: center; 
-        }
+        .controls { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); margin-bottom: 30px; width: 100%; max-width: 600px; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; justify-content: center; }
+        
+        input { padding: 12px; border: 2px solid #eee; border-radius: 8px; font-size: 14px; outline: none; transition: 0.2s; }
+        input:focus { border-color: var(--accent); }
+        #wordInput { text-transform: uppercase; width: 120px; font-weight: bold; }
+        #clueInput { width: 250px; }
 
-        .input-group { margin: 10px 0; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
-        input { padding: 10px; border: 2px solid #ddd; border-radius: 6px; width: 180px; text-transform: uppercase; font-weight: bold; }
-        
-        .btn { padding: 10px 15px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; transition: 0.2s; }
-        .btn-main { background: var(--accent); color: white; }
-        .btn-secondary { background: #2ecc71; color: white; }
-        .btn-undo { background: #95a5a6; color: white; }
-        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn { padding: 12px 20px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; transition: 0.2s; color: white; }
+        .btn-add { background: var(--accent); }
+        .btn-undo { background: #95a5a6; }
+        .btn-save { background: #2ecc71; }
 
-        /* Контейнер, который будем превращать в картинку */
-        #capture-area { background: #333; padding: 10px; border-radius: 4px; }
+        #capture-area { padding: 40px; background: #f8f9fa; display: inline-block; }
+        .grid { display: grid; gap: 1px; background: #444; border: 2px solid #444; box-shadow: 0 15px 35px rgba(0,0,0,0.2); }
         
-        .grid { display: grid; grid-template-columns: repeat(15, var(--cell)); grid-template-rows: repeat(15, var(--cell)); gap: 1px; background: #333; }
-        .cell { width: var(--cell); height: var(--cell); background: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; }
+        .cell { width: var(--cell); height: var(--cell); background: white; display: flex; align-items: center; justify-content: center; font-weight: bold; position: relative; font-size: 18px; }
         .cell.empty { background: #2c3e50; }
-        .cell.target { background: #fff9c4; cursor: pointer; outline: 2px dashed #f1c40f; outline-offset: -3px; z-index: 10; }
+        .cell.target { background: #fff9c4; cursor: pointer; z-index: 5; }
+        .cell.target::after { content: ''; position: absolute; inset: 0; border: 3px dashed #f1c40f; }
 
-        .status { margin-top: 10px; font-size: 14px; min-height: 20px; font-weight: 500; }
+        .clues-container { margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; width: 100%; max-width: 800px; background: white; padding: 20px; border-radius: 12px; }
+        .clues-column h3 { border-bottom: 2px solid var(--accent); padding-bottom: 5px; }
+        .clue-item { margin: 8px 0; font-size: 15px; line-height: 1.4; }
     </style>
 </head>
 <body>
 
     <div class="controls">
-        <h2>Генератор Кроссвордов</h2>
         <div class="input-group">
-            <input type="text" id="wordInput" placeholder="Слово..." maxlength="12">
-            <button class="btn btn-main" onclick="processInput()">Добавить</button>
+            <input type="text" id="wordInput" placeholder="СЛОВО" maxlength="15">
+            <input type="text" id="clueInput" placeholder="Вопрос к слову...">
+            <button class="btn btn-add" onclick="processInput()">Добавить</button>
         </div>
         <div class="input-group">
-            <button class="btn btn-undo" onclick="undoLast()">Отменить</button>
-            <button class="btn btn-secondary" onclick="exportImage()">Скачать PNG</button>
+            <button class="btn btn-undo" onclick="undo()">Отменить</button>
+            <button class="btn btn-save" onclick="save()">Скачать PNG</button>
         </div>
-        <div class="status" id="status">Введите первое слово</div>
+        <div id="status" style="font-size: 13px; color: #666;"></div>
     </div>
 
     <div id="capture-area">
         <div class="grid" id="grid"></div>
     </div>
 
+    <div class="clues-container" id="cluesList">
+        <div class="clues-column">
+            <h3>По горизонтали</h3>
+            <div id="h-clues"></div>
+        </div>
+        <div class="clues-column">
+            <h3>По вертикали</h3>
+            <div id="v-clues"></div>
+        </div>
+    </div>
+
     <script>
-        const SIZE = 15;
-        let grid = Array(SIZE).fill().map(() => Array(SIZE).fill(null));
-        let history = []; 
+        let gridData = {}; // { "x,y": "A" }
+        let wordsMetadata = []; // { word, x, y, dir, clue }
+        let history = [];
 
         function render() {
-            const container = document.getElementById('grid');
-            container.innerHTML = '';
-            for (let r = 0; r < SIZE; r++) {
-                for (let c = 0; c < SIZE; c++) {
+            const gridEl = document.getElementById('grid');
+            const keys = Object.keys(gridData);
+            
+            if (keys.length === 0) {
+                gridEl.style.display = 'none';
+                return;
+            }
+            gridEl.style.display = 'grid';
+
+            // Находим границы
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            keys.forEach(key => {
+                const [x, y] = key.split(',').map(Number);
+                minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+                minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+            });
+
+            // Добавляем небольшой запас по краям (padding)
+            minX -= 1; maxX += 1; minY -= 1; maxY += 1;
+
+            const cols = maxX - minX + 1;
+            const rows = maxY - minY + 1;
+
+            gridEl.style.gridTemplateColumns = `repeat(${cols}, var(--cell))`;
+            gridEl.innerHTML = '';
+
+            for (let y = minY; y <= maxY; y++) {
+                for (let x = minX; x <= maxX; x++) {
+                    const char = gridData[`${x},${y}`];
                     const cell = document.createElement('div');
-                    cell.className = `cell ${grid[r][c] ? '' : 'empty'}`;
-                    cell.textContent = grid[r][c] || '';
-                    cell.dataset.r = r; cell.dataset.c = c;
-                    container.appendChild(cell);
+                    cell.className = `cell ${char ? '' : 'empty'}`;
+                    cell.textContent = char || '';
+                    cell.dataset.x = x;
+                    cell.dataset.y = y;
+                    gridEl.appendChild(cell);
                 }
             }
+            updateClues();
         }
 
         function processInput() {
             const word = document.getElementById('wordInput').value.toUpperCase().trim();
+            const clue = document.getElementById('clueInput').value.trim();
             if (word.length < 2) return;
 
-            if (history.length === 0) {
-                saveState();
-                place(word, 7, Math.floor((SIZE - word.length) / 2), 'h');
-                showStatus("Первое слово готово!", "#2ecc71");
+            if (Object.keys(gridData).length === 0) {
+                placeWord(word, 0, 0, 'h', clue);
+                document.getElementById('status').innerText = "Первое слово добавлено!";
             } else {
-                findConnections(word);
+                showTargets(word, clue);
             }
             document.getElementById('wordInput').value = '';
+            document.getElementById('clueInput').value = '';
         }
 
-        function findConnections(word) {
+        function showTargets(word, clue) {
             render();
             let found = false;
-            for (let r = 0; r < SIZE; r++) {
-                for (let c = 0; c < SIZE; c++) {
-                    if (grid[r][c]) {
-                        const idx = word.indexOf(grid[r][c]);
-                        if (idx !== -1) {
-                            const cell = document.querySelector(`[data-r="${r}"][data-c="${c}"]`);
-                            cell.classList.add('target');
-                            // Передаем точные координаты и индекс буквы в новом слове
-                            cell.onclick = (e) => {
-                                e.stopPropagation();
-                                tryPlace(word, r, c, idx);
-                            };
-                            found = true;
+            Object.keys(gridData).forEach(key => {
+                const char = gridData[key];
+                const charIdx = word.indexOf(char);
+                if (charIdx !== -1) {
+                    const [x, y] = key.split(',').map(Number);
+                    const cell = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
+                    cell.classList.add('target');
+                    cell.onclick = () => {
+                        // Определяем направление: инвертируем то, что уже есть в этой клетке
+                        const isExistingH = wordsMetadata.some(w => w.y === y && x >= w.x && x < w.x + w.word.length && w.dir === 'h');
+                        const dir = isExistingH ? 'v' : 'h';
+                        const startX = dir === 'h' ? x - charIdx : x;
+                        const startY = dir === 'v' ? y - charIdx : y;
+
+                        if (validate(word, startX, startY, dir)) {
+                            placeWord(word, startX, startY, dir, clue);
+                        } else {
+                            alert("Здесь слово поставить нельзя (слипание или конфликт)");
                         }
-                    }
+                    };
+                    found = true;
                 }
-            }
-            showStatus(found ? "Кликни по желтой клетке" : "Нет общих букв", found ? "#3498db" : "#e74c3c");
+            });
+            if (!found) document.getElementById('status').innerText = "Нет пересечений для этого слова.";
         }
 
-        function tryPlace(word, r, c, idx) {
-            // ОПРЕДЕЛЯЕМ НАПРАВЛЕНИЕ:
-            // Если над или под буквой есть соседи — значит слово вертикальное, ставим новое горизонтально.
-            const hasVerticalNeighbors = (r > 0 && grid[r-1][c]) || (r < SIZE-1 && grid[r+1][c]);
-            const dir = hasVerticalNeighbors ? 'h' : 'v';
-            
-            const startR = dir === 'v' ? r - idx : r;
-            const startC = dir === 'h' ? c - idx : c;
-
-            if (isValid(word, startR, startC, dir)) {
-                saveState();
-                place(word, startR, startC, dir);
-                showStatus("Добавлено!", "#2ecc71");
-                render(); // Сбрасываем желтую подсветку
-            } else {
-                showStatus("Ошибка: Слипается с соседями!", "#e74c3c");
-            }
-        }
-
-        function isValid(word, startR, startC, dir) {
-            if (startR < 0 || startC < 0 || (dir === 'v' && startR + word.length > SIZE) || (dir === 'h' && startC + word.length > SIZE)) return false;
-
+        function validate(word, startX, startY, dir) {
             for (let i = 0; i < word.length; i++) {
-                const r = dir === 'v' ? startR + i : startR;
-                const c = dir === 'h' ? startC + i : startC;
+                const x = dir === 'h' ? startX + i : startX;
+                const y = dir === 'v' ? startY + i : startY;
 
-                // Если клетка уже занята другой буквой
-                if (grid[r][c] && grid[r][c] !== word[i]) return false;
+                // Конфликт букв
+                if (gridData[`${x},${y}`] && gridData[`${x},${y}`] !== word[i]) return false;
 
-                // Проверка боков и торцов
-                const neighbors = (dir === 'v') ? [{dr:0, dc:-1}, {dr:0, dc:1}] : [{dr:-1, dc:0}, {dr:1, dc:0}];
-                for (let n of neighbors) {
-                    let nr = r + n.dr, nc = c + n.dc;
-                    if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE) {
-                        if (grid[nr][nc] && !grid[r][c]) return false; // Касание боком пустой клетки
-                    }
+                // Проверка соседей (чтобы не слипались параллельно)
+                const neighbors = dir === 'h' ? [[0, 1], [0, -1]] : [[1, 0], [-1, 0]];
+                for (let [dx, dy] of neighbors) {
+                    if (gridData[`${x+dx},${y+dy}`] && !gridData[`${x},${y}`]) return false;
                 }
-                // Торцы
+                
+                // Проверка торцов
                 if (i === 0) {
-                    let tr = dir === 'v' ? r-1 : r, tc = dir === 'h' ? c-1 : c;
-                    if (tr >= 0 && tr < SIZE && tc >= 0 && tc < SIZE && grid[tr][tc]) return false;
+                    const tx = dir === 'h' ? x-1 : x, ty = dir === 'v' ? y-1 : y;
+                    if (gridData[`${tx},${ty}`]) return false;
                 }
-                if (i === word.length-1) {
-                    let ar = dir === 'v' ? r+1 : r, ac = dir === 'h' ? c+1 : c;
-                    if (ar >= 0 && ar < SIZE && ac >= 0 && ac < SIZE && grid[ar][ac]) return false;
+                if (i === word.length - 1) {
+                    const ax = dir === 'h' ? x+1 : x, ay = dir === 'v' ? y+1 : y;
+                    if (gridData[`${ax},${ay}`]) return false;
                 }
             }
             return true;
         }
 
-        function place(word, r, c, dir) {
+        function placeWord(word, x, y, dir, clue) {
+            history.push({ grid: {...gridData}, meta: [...wordsMetadata] });
             for (let i = 0; i < word.length; i++) {
-                grid[dir === 'v' ? r + i : r][dir === 'h' ? c + i : c] = word[i];
+                const cx = dir === 'h' ? x + i : x;
+                const cy = dir === 'v' ? y + i : y;
+                gridData[`${cx},${cy}`] = word[i];
             }
+            wordsMetadata.push({ word, x, y, dir, clue: clue || "Без описания" });
             render();
         }
 
-        function saveState() { history.push(JSON.stringify(grid)); }
-
-        function undoLast() {
+        function undo() {
             if (history.length > 0) {
-                grid = JSON.parse(history.pop());
+                const last = history.pop();
+                gridData = last.grid;
+                wordsMetadata = last.meta;
                 render();
-                showStatus("Отменено", "#555");
             }
         }
 
-        function showStatus(msg, color) {
-            const s = document.getElementById('status');
-            s.innerText = msg; s.style.color = color;
+        function updateClues() {
+            const hList = document.getElementById('h-clues');
+            const vList = document.getElementById('v-clues');
+            hList.innerHTML = ''; vList.innerHTML = '';
+
+            wordsMetadata.forEach((w, i) => {
+                const item = document.createElement('div');
+                item.className = 'clue-item';
+                item.innerHTML = `<strong>${i + 1}.</strong> ${w.clue} <em>(${w.word.length} б.)</em>`;
+                if (w.dir === 'h') hList.appendChild(item); else vList.appendChild(item);
+            });
         }
 
-        function exportImage() {
+        function save() {
             const area = document.getElementById('capture-area');
             html2canvas(area).then(canvas => {
                 const link = document.createElement('a');
-                link.download = 'my-crossword.png';
+                link.download = 'crossword.png';
                 link.href = canvas.toDataURL();
                 link.click();
             });
