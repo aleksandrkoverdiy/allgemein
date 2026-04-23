@@ -3,180 +3,145 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Конструктор Кроссвордов</title>
+    <title>Конструктор Кроссвордов PRO</title>
     <style>
-        :root {
-            --cell-size: 40px;
-            --bg-color: #f4f7f6;
-            --border-color: #333;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-        }
-
-        h1 { color: #2c3e50; }
-
-        .crossword-container {
-            display: grid;
-            grid-template-columns: repeat(5, var(--cell-size));
-            grid-template-rows: repeat(5, var(--cell-size));
-            gap: 2px;
-            background-color: var(--border-color);
-            padding: 2px;
-            border: 2px solid var(--border-color);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }
-
-        .cell {
-            width: var(--cell-size);
-            height: var(--cell-size);
-            background-color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-        }
-
-        .cell.black {
-            background-color: var(--border-color);
-        }
-
-        .cell input {
-            width: 100%;
-            height: 100%;
-            border: none;
-            text-align: center;
-            font-size: 1.2rem;
-            font-weight: bold;
-            text-transform: uppercase;
-            outline: none;
-        }
-
-        .cell input:focus {
-            background-color: #e8f0fe;
-        }
-
-        .cell-number {
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            font-size: 0.6rem;
-            color: #777;
-        }
-
-        .controls {
-            margin-top: 30px;
-            display: flex;
-            gap: 10px;
-        }
-
-        button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            background-color: #3498db;
-            color: white;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        button:hover { background-color: #2980b9; }
-        
-        .success { color: #27ae60; font-weight: bold; margin-top: 15px; display: none; }
+        :root { --cell: 35px; --accent: #3498db; }
+        body { font-family: system-ui, sans-serif; background: #f4f7f6; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .controls { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; width: 100%; max-width: 500px; text-align: center; }
+        input { padding: 10px; border: 2px solid #ddd; border-radius: 6px; width: 150px; text-transform: uppercase; }
+        button { padding: 10px 15px; cursor: pointer; background: var(--accent); color: white; border: none; border-radius: 6px; font-weight: bold; }
+        .grid { display: grid; grid-template-columns: repeat(15, var(--cell)); grid-template-rows: repeat(15, var(--cell)); gap: 1px; background: #444; border: 2px solid #444; }
+        .cell { width: var(--cell); height: var(--cell); background: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .cell.empty { background: #2c3e50; }
+        .cell.target { background: #fff9c4; cursor: pointer; border: 2px inset #fbc02d; box-sizing: border-box; }
+        .cell.target:hover { background: #fff176; }
+        .status { margin-top: 10px; font-size: 14px; color: #555; height: 20px; }
     </style>
 </head>
 <body>
 
-    <h1>Мини-Кроссворд</h1>
-    
-    <div class="crossword-container" id="grid">
-        </div>
-
-    <div id="message" class="success">Поздравляем! Кроссворд решен верно!</div>
-
     <div class="controls">
-        <button onclick="checkAnswers()">Проверить ответы</button>
-        <button onclick="resetGame()">Очистить</button>
+        <h3>Конструктор с валидацией</h3>
+        <input type="text" id="wordInput" placeholder="Слово..." maxlength="12">
+        <button onclick="processInput()">Добавить</button>
+        <div class="status" id="status">Введите первое слово.</div>
     </div>
 
+    <div class="grid" id="grid"></div>
+
     <script>
-        // Простая схема 5x5: 0 - черная клетка, буква - правильный ответ
-        const puzzle = [
-            ['К', 'О', 'Т', 0, 0],
-            [0, 0, 'О', 0, 0],
-            ['Л', 'У', 'К', 'А', 0],
-            [0, 0, 'А', 0, 0],
-            [0, 0, 'Ф', 'А', 'З']
-        ];
+        const SIZE = 15;
+        let grid = Array(SIZE).fill().map(() => Array(SIZE).fill(null));
+        let placedWords = [];
 
-        const gridElement = document.getElementById('grid');
-
-        // Создание сетки
-        function createGrid() {
-            gridElement.innerHTML = '';
-            for (let r = 0; r < 5; r++) {
-                for (let c = 0; c < 5; c++) {
+        function render() {
+            const container = document.getElementById('grid');
+            container.innerHTML = '';
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
                     const cell = document.createElement('div');
-                    cell.className = 'cell';
-                    
-                    if (puzzle[r][c] === 0) {
-                        cell.classList.add('black');
-                    } else {
-                        const input = document.createElement('input');
-                        input.maxLength = 1;
-                        input.dataset.row = r;
-                        input.dataset.col = c;
-                        cell.appendChild(input);
+                    cell.className = `cell ${grid[r][c] ? '' : 'empty'}`;
+                    cell.textContent = grid[r][c] || '';
+                    cell.dataset.r = r; cell.dataset.c = c;
+                    container.appendChild(cell);
+                }
+            }
+        }
 
-                        // Нумерация для красоты (упрощенно)
-                        if ((r===0 && c===0) || (r===2 && c===0) || (r===0 && c===2)) {
-                            const num = document.createElement('span');
-                            num.className = 'cell-number';
-                            num.innerText = (r + c + 1);
-                            cell.appendChild(num);
+        function processInput() {
+            const word = document.getElementById('wordInput').value.toUpperCase().trim();
+            if (word.length < 2) return;
+
+            if (placedWords.length === 0) {
+                place(word, 7, Math.floor((SIZE - word.length) / 2), 'h');
+            } else {
+                findConnections(word);
+            }
+            document.getElementById('wordInput').value = '';
+        }
+
+        function findConnections(word) {
+            render();
+            let found = false;
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    if (grid[r][c]) {
+                        const idx = word.indexOf(grid[r][c]);
+                        if (idx !== -1) {
+                            const cell = document.querySelector(`[data-r="${r}"][data-c="${c}"]`);
+                            cell.classList.add('target');
+                            cell.onclick = () => tryPlace(word, r, c, idx);
+                            found = true;
                         }
                     }
-                    gridElement.appendChild(cell);
                 }
+            }
+            document.getElementById('status').innerText = found ? "Выберите точку пересечения" : "Нет общих букв!";
+        }
+
+        function tryPlace(word, r, c, idx) {
+            const isH = placedWords.some(w => w.r === r && c >= w.c && c < w.c + w.word.length && w.dir === 'h');
+            const dir = isH ? 'v' : 'h';
+            const startR = dir === 'v' ? r - idx : r;
+            const startC = dir === 'h' ? c - idx : c;
+
+            if (isValid(word, startR, startC, dir)) {
+                place(word, startR, startC, dir);
+                document.getElementById('status').innerText = "Готово!";
+            } else {
+                alert("Ошибка: Слово касается других слов недопустимым образом!");
             }
         }
 
-        function checkAnswers() {
-            const inputs = document.querySelectorAll('.cell input');
-            let allCorrect = true;
+        function isValid(word, startR, startC, dir) {
+            // 1. Проверка границ
+            if (startR < 0 || startC < 0 || 
+                (dir === 'v' && startR + word.length > SIZE) || 
+                (dir === 'h' && startC + word.length > SIZE)) return false;
 
-            inputs.forEach(input => {
-                const r = input.dataset.row;
-                const c = input.dataset.col;
-                if (input.value.toUpperCase() === puzzle[r][c]) {
-                    input.style.color = '#27ae60';
-                } else {
-                    input.style.color = '#e74c3c';
-                    allCorrect = false;
+            // 2. Проверка окружения каждой буквы
+            for (let i = 0; i < word.length; i++) {
+                const r = dir === 'v' ? startR + i : startR;
+                const c = dir === 'h' ? startC + i : startC;
+
+                // Если в самой клетке уже другая буква — конфликт
+                if (grid[r][c] && grid[r][c] !== word[i]) return false;
+
+                // Проверяем соседей (слева, справа, сверху, снизу)
+                const neighbors = [
+                    {dr: -1, dc: 0}, {dr: 1, dc: 0}, 
+                    {dr: 0, dc: -1}, {dr: 0, dc: 1}
+                ];
+
+                for (let n of neighbors) {
+                    const nr = r + n.dr;
+                    const nc = c + n.dc;
+                    
+                    if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE) {
+                        // Если сосед занят...
+                        if (grid[nr][nc]) {
+                            // ...это допустимо ТОЛЬКО если это буква того же слова, которое мы ставим
+                            const isPartSelf = dir === 'v' ? (nc === c && nr >= startR && nr < startR + word.length) : (nr === r && nc >= startC && nc < startC + word.length);
+                            // ...или если это существующая буква, на которой мы делаем пересечение
+                            const isIntersection = (grid[nr][nc] === word[i] && nr === r && nc === c);
+
+                            if (!isPartSelf && !isIntersection) return false;
+                        }
+                    }
                 }
-            });
-
-            if (allCorrect) {
-                document.getElementById('message').style.display = 'block';
             }
+            return true;
         }
 
-        function resetGame() {
-            const inputs = document.querySelectorAll('.cell input');
-            inputs.forEach(input => {
-                input.value = '';
-                input.style.color = 'black';
-            });
-            document.getElementById('message').style.display = 'none';
+        function place(word, r, c, dir) {
+            for (let i = 0; i < word.length; i++) {
+                grid[dir === 'v' ? r + i : r][dir === 'h' ? c + i : c] = word[i];
+            }
+            placedWords.push({word, r, c, dir});
+            render();
         }
 
-        createGrid();
+        render();
     </script>
 </body>
 </html>
